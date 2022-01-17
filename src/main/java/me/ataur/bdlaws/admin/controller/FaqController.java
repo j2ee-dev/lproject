@@ -1,0 +1,197 @@
+package me.ataur.bdlaws.admin.controller;
+
+import me.ataur.bdlaws.admin.model.Faq;
+/*IMPORT_EXTRA_MODEL*/
+import me.ataur.bdlaws.admin.repository.FaqRepository;
+import me.ataur.bdlaws.admin.repository.FaqDataTableRepository;
+
+/*IMPORT_EXTRA_REPOSITORY*/
+
+import me.ataur.bdlaws.admin.validator.FaqValidator;
+
+import com.fasterxml.jackson.annotation.JsonView;
+import org.springframework.beans.propertyeditors.StringTrimmerEditor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.datatables.mapping.DataTablesInput;
+import org.springframework.data.jpa.datatables.mapping.DataTablesOutput;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.Valid;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.text.SimpleDateFormat;
+import java.util.*;
+
+/**
+ * Created by imran hossain
+ */
+
+@Controller
+@RequestMapping({"/admin/Faq","/admin/faq"})
+public class FaqController extends MyBaseController{
+
+    private static final Logger logger = LoggerFactory.getLogger(FaqController.class);
+
+    @InitBinder
+    public void initBinder ( WebDataBinder binder )
+    {
+        StringTrimmerEditor stringtrimmer = new StringTrimmerEditor(true);
+        binder.registerCustomEditor(String.class, stringtrimmer);
+    }
+
+    @Autowired
+    FaqRepository faqRepository;
+     @Autowired
+    FaqDataTableRepository faqDataTableRepository;
+
+
+    /*AUTOWIRED_EXTRA_REPOSITORY*/
+    @Autowired
+    FaqValidator faqValidator;
+
+    @RequestMapping(value={"","/index"},method = RequestMethod.GET)
+    public String index(Model model){
+        return "admin/pages/Faq/datatable";
+    }
+
+    @RequestMapping(value={"/create","/create/*"},method = RequestMethod.GET)
+    public String create(Model model,HttpServletRequest request){
+        
+        Faq faq = new Faq();
+        model.addAttribute("faq", faq);
+        model.addAttribute("action","/create");
+        /*EXTA_PARAMETER*/
+        return "admin/pages/Faq/create";
+    }
+
+
+    @RequestMapping(value={"/create"},method = RequestMethod.POST)
+    public String save(Model model , @Valid @ModelAttribute("faq") Faq faq, BindingResult result,HttpServletRequest request ){
+        
+        
+
+        faqValidator.validate(faq, result);
+        if(result.hasErrors()){
+            model.addAttribute("faq", faq);
+            model.addAttribute("action","/create");
+            /*EXTA_PARAMETER*/
+            return "admin/pages/Faq/create";
+        }
+        
+        
+
+        
+
+        /*CHILD_TABLE_DATA_CREATE*/
+
+        /*SET_NULL_TO_FOREIN_KEY*/
+        faq.setCreatedBy(SecurityContextHolder.getContext().getAuthentication().getName());
+        faq.setCreatedAt(new Date());
+        faqRepository.save(faq);
+        return "redirect:/admin/faq";
+    }
+
+
+
+    @RequestMapping(value="/edit/{id}",method = RequestMethod.GET)
+    public String edit(@PathVariable("id") Integer id,Model model,HttpServletRequest request){
+        
+      
+        Faq faq = faqRepository.findOne(id);
+        /*SET_OTHER_FIELD*/
+        model.addAttribute("faq", faq);
+        model.addAttribute("action","/edit/"+id);
+        /*EXTA_PARAMETER*/
+        return "admin/pages/Faq/edit";
+    }
+
+
+    @RequestMapping(value="/edit/{id}",method = RequestMethod.POST)
+    public String update(@PathVariable("id") Integer id,Model model , @Valid @ModelAttribute("faq") Faq faq, BindingResult result,HttpServletRequest request ){
+        
+        Faq faqOld = faqRepository.findOne(id);
+        
+        faqValidator.validate(faq, result);
+        if(result.hasErrors()){
+            model.addAttribute("faq", faq);
+            model.addAttribute("action","/edit/"+id);
+            /*EXTA_PARAMETER*/
+            return "admin/pages/Faq/edit";
+        }
+
+        
+        
+        /*CHILD_TABLE_DATA_EDIT*/
+        
+        /*SET_NULL_TO_FOREIN_KEY*/
+        faq.setCreatedBy(faqOld.getCreatedBy());
+        faq.setCreatedAt(faqOld.getCreatedAt());
+
+        faq.setUpdatedBy(SecurityContextHolder.getContext().getAuthentication().getName());
+        faq.setUpdatedAt(new Date());
+
+        faqRepository.save(faq);
+        return "redirect:/admin/faq";
+    }
+
+
+
+    @RequestMapping(value="/details/{id}",method = RequestMethod.GET)
+    public String details(@PathVariable("id") Integer id,Model model,HttpServletRequest request){
+        
+        Faq faq = faqRepository.findOne(id);
+        model.addAttribute("faq", faq);
+        return "admin/pages/Faq/details";
+    }
+
+
+    @RequestMapping(value="/delete/{id}",method = RequestMethod.GET)
+    @ResponseBody
+    public  Map<String,Object> delete(@PathVariable("id") Integer id,Model model){
+        faqRepository.delete(id);
+        Map<String,Object> response = new HashMap();
+  
+        response.put("success",true);
+        response.put("message","You have successfully deleted the record");
+        return response;
+    }
+
+    @RequestMapping(value="/{id}",method = RequestMethod.GET)
+    @ResponseBody
+    public  Faq getById(@PathVariable("id") Integer id,Model model){
+        Faq faq = faqRepository.findOne(id);
+        return faq;
+    }
+
+
+    @RequestMapping(value="/dataApi",method = RequestMethod.GET)
+    @ResponseBody
+    public List<Faq> data(){
+        return faqRepository.findAll();
+    }
+
+    @JsonView(DataTablesOutput.View.class)
+    @ResponseBody
+    @RequestMapping(value = "/data", method = RequestMethod.POST,headers="Accept=application/json")
+    public DataTablesOutput<Faq> getFaqs(@Valid @RequestBody DataTablesInput input) {
+
+        return faqDataTableRepository.findAll(input);
+    }
+
+    /*EXTRA_METHOD*/
+
+}
